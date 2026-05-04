@@ -1,7 +1,6 @@
 package main
 
 import (
-<<<<<<< HEAD
 	"context"
 	"log"
 	"net/http"
@@ -65,24 +64,11 @@ func main() {
 	// -------------------------------------------------------------------------
 	// 3. Open GORM connection with connection pool
 	// -------------------------------------------------------------------------
-=======
-	"log"
-
-	"github.com/gin-gonic/gin"
-
-	"zenith/internal/config"
-	"zenith/internal/handlers"
-)
-
-func main() {
-	// Initialize the database connection
->>>>>>> 978d64477cb29bd85011e3eb63b7a711ee7f9dde
 	db, err := config.ConnectDB()
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
 
-<<<<<<< HEAD
 	// -------------------------------------------------------------------------
 	// 4. Wire up repositories (Dependency Injection)
 	// -------------------------------------------------------------------------
@@ -176,23 +162,4 @@ func main() {
 	}
 
 	log.Println("Server exited gracefully")
-=======
-	// Create Gin router
-	r := gin.Default()
-
-	// Register API routes
-	api := r.Group("/api/v1")
-	{
-		syncGroup := api.Group("/sync")
-		{
-			syncGroup.POST("/push", handlers.PushMutations(db))
-		}
-	}
-
-	// Start HTTP server
-	log.Println("Starting server on :8080")
-	if err := r.Run(":8080"); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
-	}
->>>>>>> 978d64477cb29bd85011e3eb63b7a711ee7f9dde
 }
