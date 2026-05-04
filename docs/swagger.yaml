@@ -1,0 +1,477 @@
+basePath: /api/v1
+definitions:
+  handlers.AuthResponse:
+    properties:
+      token:
+        type: string
+      user:
+        $ref: '#/definitions/handlers.UserPublic'
+    type: object
+  handlers.CreateHabitRequest:
+    properties:
+      emergency_title:
+        example: Read 5 mins
+        type: string
+      standard_title:
+        example: Read 30 mins
+        type: string
+    required:
+    - emergency_title
+    - standard_title
+    type: object
+  handlers.HabitLogMutation:
+    properties:
+      completion_type:
+        $ref: '#/definitions/models.CompletionType'
+      habit_id:
+        type: string
+      log_date:
+        type: string
+    required:
+    - completion_type
+    - habit_id
+    - log_date
+    type: object
+  handlers.HabitResponse:
+    properties:
+      created_at:
+        type: string
+      emergency_title:
+        type: string
+      id:
+        type: string
+      standard_title:
+        type: string
+      status:
+        $ref: '#/definitions/models.HabitStatus'
+    type: object
+  handlers.LoginRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  handlers.RegisterRequest:
+    properties:
+      email:
+        type: string
+      password:
+        maxLength: 72
+        minLength: 8
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  handlers.SyncPushRequest:
+    properties:
+      mutations:
+        items:
+          $ref: '#/definitions/handlers.HabitLogMutation'
+        maxItems: 500
+        minItems: 1
+        type: array
+    required:
+    - mutations
+    type: object
+  handlers.SyncPushResponse:
+    properties:
+      errors:
+        items:
+          type: string
+        type: array
+      skipped:
+        type: integer
+      synced:
+        type: integer
+    type: object
+  handlers.UpdateHabitRequest:
+    properties:
+      emergency_title:
+        example: Read 10 mins
+        type: string
+      standard_title:
+        example: Read 60 mins
+        type: string
+      status:
+        allOf:
+        - $ref: '#/definitions/models.HabitStatus'
+        example: ACTIVE
+    type: object
+  handlers.UserPublic:
+    properties:
+      email:
+        type: string
+      id:
+        type: string
+      identity_score:
+        type: number
+      timezone:
+        type: string
+    type: object
+  models.CompletionType:
+    enum:
+    - PENDING
+    - COMPLETED_STANDARD
+    - COMPLETED_EMERGENCY
+    - MISSED
+    - PAUSED
+    type: string
+    x-enum-varnames:
+    - CompletionTypePending
+    - CompletionTypeCompletedStandard
+    - CompletionTypeCompletedEmergency
+    - CompletionTypeMissed
+    - CompletionTypePaused
+  models.HabitStatus:
+    enum:
+    - ACTIVE
+    - PAUSED
+    - ARCHIVED
+    type: string
+    x-enum-varnames:
+    - HabitStatusActive
+    - HabitStatusPaused
+    - HabitStatusArchived
+  response.ErrDetail:
+    properties:
+      code:
+        type: string
+      message:
+        type: string
+    type: object
+  response.Response:
+    properties:
+      data: {}
+      error:
+        $ref: '#/definitions/response.ErrDetail'
+      success:
+        type: boolean
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@swagger.io
+    name: API Support
+    url: http://www.swagger.io/support
+  description: Backend API for Habit Tracker with JWT authentication and habit synchronization.
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: Habit Tracker API
+  version: "1.0"
+paths:
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate user and return a JWT token for protected routes.
+      parameters:
+      - description: Login Credentials
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.AuthResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: Login user
+      tags:
+      - auth
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Create a new user account with email and password. Email is normalized
+        to lowercase.
+      parameters:
+      - description: Registration Details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.AuthResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: Register a new user
+      tags:
+      - auth
+  /habits:
+    get:
+      description: Retrieve all active habits for the authenticated user.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/handlers.HabitResponse'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: List all habits
+      tags:
+      - habits
+    post:
+      consumes:
+      - application/json
+      description: Define a new habit with standard and emergency goals.
+      parameters:
+      - description: Habit Details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.CreateHabitRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.HabitResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: Create a new habit
+      tags:
+      - habits
+  /habits/{id}:
+    delete:
+      description: Soft delete a habit.
+      parameters:
+      - description: Habit ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: Delete a habit
+      tags:
+      - habits
+    get:
+      description: Retrieve a specific habit by its ID.
+      parameters:
+      - description: Habit ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.HabitResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: Get habit detail
+      tags:
+      - habits
+    put:
+      consumes:
+      - application/json
+      description: Modify the titles or status of an existing habit.
+      parameters:
+      - description: Habit ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Updated Habit Details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.UpdateHabitRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.HabitResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: Update a habit
+      tags:
+      - habits
+  /sync/push:
+    post:
+      consumes:
+      - application/json
+      description: Push a batch of habit log mutations (completed/missed/etc) to the
+        server. Requires JWT token.
+      parameters:
+      - description: List of mutations to sync
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.SyncPushRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.SyncPushResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: Sync habit mutations
+      tags:
+      - sync
+securityDefinitions:
+  BearerAuth:
+    description: Type "Bearer <your_token>" to authenticate.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
