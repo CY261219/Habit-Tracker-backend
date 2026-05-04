@@ -42,8 +42,8 @@ func (h *Habit) BeforeCreate(tx *gorm.DB) (err error) {
 
 type HabitLog struct {
 	ID             uuid.UUID `gorm:"type:uuid;primaryKey"`
-	HabitID        uuid.UUID `gorm:"type:uuid;not null"`
-	LogDate        time.Time `gorm:"type:date"`
+	HabitID        uuid.UUID `gorm:"type:uuid;not null;uniqueIndex:idx_habit_log_date"`
+	LogDate        time.Time `gorm:"type:date;uniqueIndex:idx_habit_log_date"`
 	CompletionType string    `gorm:"type:varchar(30);default:'PENDING'"` // 'PENDING', 'COMPLETED_STANDARD', 'COMPLETED_EMERGENCY', 'MISSED'
 	IsSynced       bool      `gorm:"default:false"`
 }
