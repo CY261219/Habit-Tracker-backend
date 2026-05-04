@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
@@ -18,6 +19,15 @@ const (
 	HabitStatusActive   HabitStatus = "ACTIVE"
 	HabitStatusPaused   HabitStatus = "PAUSED"
 	HabitStatusArchived HabitStatus = "ARCHIVED"
+)
+
+// FrequencyType represents how often a habit is scheduled.
+type FrequencyType string
+
+const (
+	FrequencyTypeDaily  FrequencyType = "DAILY"
+	FrequencyTypeWeekly FrequencyType = "WEEKLY"
+	FrequencyTypeCustom FrequencyType = "CUSTOM"
 )
 
 // CompletionType represents how a habit log entry was completed.
@@ -68,6 +78,8 @@ type Habit struct {
 	StandardTitle  string         `gorm:"not null"`
 	EmergencyTitle string         `gorm:"not null"`
 	Status         HabitStatus    `gorm:"default:'ACTIVE'"`
+	FrequencyType  FrequencyType  `gorm:"default:'DAILY'"`
+	FrequencyConfig datatypes.JSON `gorm:"type:jsonb;default:'[]'"`
 
 	// Associations
 	User User `gorm:"foreignKey:UserID"`
