@@ -2,44 +2,43 @@ package services
 
 import (
 	"math"
+
+	"zenith/internal/models"
 )
 
-// Completion types
-const (
-	CompletionTypeStandard  = "COMPLETED_STANDARD"
-	CompletionTypeEmergency = "COMPLETED_EMERGENCY"
-	CompletionTypeMissed    = "MISSED"
-	CompletionTypePaused    = "PAUSED"
-)
+// UpdateIdentityScore calculates the new identity score based on the completion
+// type of a habit log. The resulting score is clamped between 0.0 and 100.0.
+func UpdateIdentityScore(currentScore float64, ct models.CompletionType) float64 {
+	newScore := currentScore + GetModifier(ct)
+	return Clamp(newScore)
+}
 
-// UpdateIdentityScore calculates the new identity score based on the completion type of a habit.
-// The score is clamped between 0.0 and 100.0.
-func UpdateIdentityScore(currentScore float64, completionType string) float64 {
-	var modifier float64
-
-	switch completionType {
-	case CompletionTypeStandard:
-		modifier = 2.0
-	case CompletionTypeEmergency:
-		modifier = 0.5
-	case CompletionTypeMissed:
-		modifier = -1.0
-	case CompletionTypePaused:
-		modifier = 0.0
+// GetModifier returns the raw score modifier for a given CompletionType.
+// Exported so that handlers can revert a previous score adjustment without
+// duplicating the business logic.
+func GetModifier(ct models.CompletionType) float64 {
+	switch ct {
+	case models.CompletionTypeCompletedStandard:
+		return 2.0
+	case models.CompletionTypeCompletedEmergency:
+		return 0.5
+	case models.CompletionTypeMissed:
+		return -1.0
+	case models.CompletionTypePaused:
+		return 0.0
 	default:
-		// Unknown or PENDING, no change
-		modifier = 0.0
+		// PENDING or unknown — no change
+		return 0.0
 	}
+}
 
-	newScore := currentScore + modifier
-
-	// Clamp the score between 0.0 and 100.0
-	if newScore > 100.0 {
-		newScore = 100.0
-	} else if newScore < 0.0 {
-		newScore = 0.0
+// Clamp restricts a score to the [0.0, 100.0] range and rounds to two
+// decimal places to eliminate floating-point drift.
+func Clamp(score float64) float64 {
+	if score > 100.0 {
+		score = 100.0
+	} else if score < 0.0 {
+		score = 0.0
 	}
-
-	// Round to two decimal places to handle float precision issues
-	return math.Round(newScore*100) / 100
+	return math.Round(score*100) / 100
 }
