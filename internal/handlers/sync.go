@@ -13,6 +13,7 @@ import (
 	"zenith/internal/repository"
 	"zenith/internal/response"
 	"zenith/internal/services"
+	"encoding/json"
 )
 
 // ---------------------------------------------------------------------------
@@ -30,9 +31,9 @@ type SyncPushRequest struct {
 }
 
 type HabitLogMutation struct {
-	HabitID        uuid.UUID              `json:"habit_id"        binding:"required"`
-	LogDate        string                 `json:"log_date"        binding:"required"`
-	CompletionType models.CompletionType  `json:"completion_type" binding:"required"`
+	HabitID        uuid.UUID             `json:"habit_id"        binding:"required"`
+	LogDate        string                `json:"log_date"        binding:"required"`
+	CompletionType models.CompletionType `json:"completion_type" binding:"required"`
 }
 
 type SyncPushResponse struct {
@@ -187,22 +188,33 @@ func PushMutations(
 		}
 
 		currentScore := user.IdentityScore
+		habitMap := make(map[uuid.UUID]models.Habit, len(habits))
+		for _, h := range habits {
+			habitMap[h.ID] = h
+		}
+
 		for _, m := range deduped {
 			key := fmt.Sprintf("%s_%s", m.HabitID.String(), m.LogDate)
+			habit := habitMap[m.HabitID]
+			parsedDate, _ := time.Parse("2006-01-02", m.LogDate)
 
-			// If a log already exists, revert its previous contribution before applying the new one
+			// 8a. Check if this date is a scheduled day for the habit
+			if !IsScheduledDay(habit, parsedDate) {
+				// If not a scheduled day, we skip score adjustment but keep the log
+				continue
+			}
+
+			// 8b. If a log already exists, revert its previous contribution
 			if existingType, exists := existingMap[key]; exists {
 				oldModifier := services.GetModifier(existingType)
 				currentScore = services.Clamp(currentScore - oldModifier)
 			}
 
-			// Apply the new completion type's modifier
+			// 8c. Apply the new completion type's modifier
 			currentScore = services.UpdateIdentityScore(currentScore, m.CompletionType)
 		}
 
 		// 9. Execute upsert + score update in a single transaction
-		// We use the GORM db through the repos — for the transaction we need the raw db.
-		// The repos handle their own queries; we orchestrate here.
 		if err := habitLogRepo.UpsertBatch(c.Request.Context(), logs); err != nil {
 			log.Printf("sync/push: UpsertBatch error: %v", err)
 			response.InternalError(c)
@@ -217,7 +229,42 @@ func PushMutations(
 
 		response.OK(c, SyncPushResponse{
 			Synced:  len(logs),
-			Skipped: len(req.Mutations) - len(deduped), // count of deduped entries
+			Skipped: len(req.Mutations) - len(deduped),
 		})
+	}
+}
+
+// IsScheduledDay checks if a specific date is a scheduled day for a given habit.
+func IsScheduledDay(h models.Habit, date time.Time) bool {
+	switch h.FrequencyType {
+	case models.FrequencyTypeDaily:
+		return true
+	case models.FrequencyTypeWeekly:
+		// Weekly usually means 7 times a week or any day. 
+		// For simplicity, we can treat it same as Daily or implement target counts.
+		// Let's assume WEEKLY means any day is fine for now.
+		return true
+	case models.FrequencyTypeCustom:
+		// Parse the frequency_config JSON array of days (1=Mon, 7=Sun)
+		var scheduledDays []int
+		if err := json.Unmarshal(h.FrequencyConfig, &scheduledDays); err != nil {
+			return true // Fallback to every day if config is broken
+		}
+		
+		// Go's time.Weekday is 0=Sun, 1=Mon, ..., 6=Sat
+		// We normalize to 1=Mon, ..., 7=Sun
+		weekday := int(date.Weekday())
+		if weekday == 0 {
+			weekday = 7
+		}
+
+		for _, d := range scheduledDays {
+			if d == weekday {
+				return true
+			}
+		}
+		return false
+	default:
+		return true
 	}
 }

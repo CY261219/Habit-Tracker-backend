@@ -1,12 +1,14 @@
 package handlers
 
 import (
+	"encoding/json"
 	"errors"
 	"log"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 
 	"zenith/internal/middleware"
@@ -17,31 +19,42 @@ import (
 
 // Request/Response Structs
 type CreateHabitRequest struct {
-	StandardTitle  string `json:"standard_title" binding:"required" example:"Read 30 mins"`
-	EmergencyTitle string `json:"emergency_title" binding:"required" example:"Read 5 mins"`
+	StandardTitle   string               `json:"standard_title"  binding:"required" example:"Lari Pagi 30 Menit"`
+	EmergencyTitle  string               `json:"emergency_title" binding:"required" example:"Jalan Kaki 5 Menit"`
+	FrequencyType   models.FrequencyType `json:"frequency_type"   binding:"omitempty,oneof=DAILY WEEKLY CUSTOM" example:"CUSTOM"`
+	FrequencyConfig []int                `json:"frequency_config" binding:"omitempty" example:"1,3,5"` // 1=Senin, 3=Rabu, 5=Jumat
 }
 
 type UpdateHabitRequest struct {
-	StandardTitle  string             `json:"standard_title" example:"Read 60 mins"`
-	EmergencyTitle string             `json:"emergency_title" example:"Read 10 mins"`
-	Status         models.HabitStatus `json:"status" example:"ACTIVE"`
+	StandardTitle   string               `json:"standard_title"  example:"Lari Pagi 60 Menit"`
+	EmergencyTitle  string               `json:"emergency_title" example:"Jalan Kaki 10 Menit"`
+	Status          models.HabitStatus   `json:"status"          example:"ACTIVE"`
+	FrequencyType   models.FrequencyType `json:"frequency_type"   example:"DAILY"`
+	FrequencyConfig []int                `json:"frequency_config" example:"1,2,3,4,5,6,7"`
 }
 
 type HabitResponse struct {
-	ID             uuid.UUID          `json:"id"`
-	StandardTitle  string             `json:"standard_title"`
-	EmergencyTitle string             `json:"emergency_title"`
-	Status         models.HabitStatus `json:"status"`
-	CreatedAt      time.Time          `json:"created_at"`
+	ID              uuid.UUID            `json:"id"`
+	StandardTitle   string               `json:"standard_title"`
+	EmergencyTitle  string               `json:"emergency_title"`
+	Status          models.HabitStatus   `json:"status"`
+	FrequencyType   models.FrequencyType `json:"frequency_type"`
+	FrequencyConfig []int                `json:"frequency_config"`
+	CreatedAt       time.Time            `json:"created_at"`
 }
 
 func toHabitResponse(h *models.Habit) HabitResponse {
+	var fConfig []int
+	json.Unmarshal(h.FrequencyConfig, &fConfig)
+
 	return HabitResponse{
-		ID:             h.ID,
-		StandardTitle:  h.StandardTitle,
-		EmergencyTitle: h.EmergencyTitle,
-		Status:         h.Status,
-		CreatedAt:      h.CreatedAt,
+		ID:              h.ID,
+		StandardTitle:   h.StandardTitle,
+		EmergencyTitle:  h.EmergencyTitle,
+		Status:          h.Status,
+		FrequencyType:   h.FrequencyType,
+		FrequencyConfig: fConfig,
+		CreatedAt:       h.CreatedAt,
 	}
 }
 
@@ -67,12 +80,25 @@ func CreateHabit(habitRepo repository.HabitRepository) gin.HandlerFunc {
 
 		userID := c.MustGet(middleware.ContextKeyUserID).(uuid.UUID)
 
+		// Set defaults if not provided
+		fType := req.FrequencyType
+		if fType == "" {
+			fType = models.FrequencyTypeDaily
+		}
+		fConfig := datatypes.JSON("[]")
+		if req.FrequencyConfig != nil {
+			bytes, _ := json.Marshal(req.FrequencyConfig)
+			fConfig = datatypes.JSON(bytes)
+		}
+
 		habit := &models.Habit{
-			ID:             uuid.New(),
-			UserID:         userID,
-			StandardTitle:  req.StandardTitle,
-			EmergencyTitle: req.EmergencyTitle,
-			Status:         models.HabitStatusActive,
+			ID:              uuid.New(),
+			UserID:          userID,
+			StandardTitle:   req.StandardTitle,
+			EmergencyTitle:  req.EmergencyTitle,
+			Status:          models.HabitStatusActive,
+			FrequencyType:   fType,
+			FrequencyConfig: fConfig,
 		}
 
 		if err := habitRepo.Create(c.Request.Context(), habit); err != nil {
@@ -211,6 +237,13 @@ func UpdateHabit(habitRepo repository.HabitRepository) gin.HandlerFunc {
 		}
 		if req.Status != "" {
 			habit.Status = req.Status
+		}
+		if req.FrequencyType != "" {
+			habit.FrequencyType = req.FrequencyType
+		}
+		if req.FrequencyConfig != nil {
+			bytes, _ := json.Marshal(req.FrequencyConfig)
+			habit.FrequencyConfig = datatypes.JSON(bytes)
 		}
 
 		if err := habitRepo.Update(c.Request.Context(), habit); err != nil {

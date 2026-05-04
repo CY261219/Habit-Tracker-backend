@@ -544,11 +544,36 @@ const docTemplate = `{
             "properties": {
                 "emergency_title": {
                     "type": "string",
-                    "example": "Read 5 mins"
+                    "example": "Jalan Kaki 5 Menit"
+                },
+                "frequency_config": {
+                    "description": "1=Senin, 3=Rabu, 5=Jumat",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    },
+                    "example": [
+                        1,
+                        3,
+                        5
+                    ]
+                },
+                "frequency_type": {
+                    "enum": [
+                        "DAILY",
+                        "WEEKLY",
+                        "CUSTOM"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.FrequencyType"
+                        }
+                    ],
+                    "example": "CUSTOM"
                 },
                 "standard_title": {
                     "type": "string",
-                    "example": "Read 30 mins"
+                    "example": "Lari Pagi 30 Menit"
                 }
             }
         },
@@ -579,6 +604,15 @@ const docTemplate = `{
                 },
                 "emergency_title": {
                     "type": "string"
+                },
+                "frequency_config": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "frequency_type": {
+                    "$ref": "#/definitions/models.FrequencyType"
                 },
                 "id": {
                     "type": "string"
@@ -661,11 +695,34 @@ const docTemplate = `{
             "properties": {
                 "emergency_title": {
                     "type": "string",
-                    "example": "Read 10 mins"
+                    "example": "Jalan Kaki 10 Menit"
+                },
+                "frequency_config": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    },
+                    "example": [
+                        1,
+                        2,
+                        3,
+                        4,
+                        5,
+                        6,
+                        7
+                    ]
+                },
+                "frequency_type": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.FrequencyType"
+                        }
+                    ],
+                    "example": "DAILY"
                 },
                 "standard_title": {
                     "type": "string",
-                    "example": "Read 60 mins"
+                    "example": "Lari Pagi 60 Menit"
                 },
                 "status": {
                     "allOf": [
@@ -709,6 +766,19 @@ const docTemplate = `{
                 "CompletionTypeCompletedEmergency",
                 "CompletionTypeMissed",
                 "CompletionTypePaused"
+            ]
+        },
+        "models.FrequencyType": {
+            "type": "string",
+            "enum": [
+                "DAILY",
+                "WEEKLY",
+                "CUSTOM"
+            ],
+            "x-enum-varnames": [
+                "FrequencyTypeDaily",
+                "FrequencyTypeWeekly",
+                "FrequencyTypeCustom"
             ]
         },
         "models.HabitStatus": {
