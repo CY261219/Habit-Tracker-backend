@@ -31,91 +31,69 @@ const (
 	CompletionTypePaused            CompletionType = "PAUSED"
 )
 
-// IsValid returns true if the CompletionType is one of the allowed values.
+// IsValid checks if the completion type is a recognized value.
 func (ct CompletionType) IsValid() bool {
 	switch ct {
-	case CompletionTypePending,
-		CompletionTypeCompletedStandard,
-		CompletionTypeCompletedEmergency,
-		CompletionTypeMissed,
-		CompletionTypePaused:
+	case CompletionTypePending, CompletionTypeCompletedStandard,
+		CompletionTypeCompletedEmergency, CompletionTypeMissed, CompletionTypePaused:
 		return true
+	default:
+		return false
 	}
-	return false
 }
 
 // ---------------------------------------------------------------------------
-// Base Model (timestamps + soft delete, without uint ID)
+// Database Entities
 // ---------------------------------------------------------------------------
 
-// BaseModel provides audit timestamps and soft-delete without overriding ID.
-type BaseModel struct {
-	CreatedAt time.Time      `json:"created_at"`
-	UpdatedAt time.Time      `json:"updated_at"`
-	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`
+// User represents a person using the habit tracker.
+type User struct {
+	ID            uuid.UUID `gorm:"type:uuid;primaryKey"`
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	DeletedAt     gorm.DeletedAt `gorm:"index"`
+	Email         string         `gorm:"uniqueIndex;not null"`
+	PasswordHash  string         `gorm:"not null"`
+	IdentityScore float64        `gorm:"default:0.0"`
+	Timezone      string         `gorm:"default:'UTC'"`
 }
 
-// ---------------------------------------------------------------------------
-// HabitLogKey is used for batch queries (find existing logs by composite key)
-// ---------------------------------------------------------------------------
+// Habit represents a recurring goal a user wants to achieve.
+type Habit struct {
+	ID             uuid.UUID `gorm:"type:uuid;primaryKey"`
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	DeletedAt      gorm.DeletedAt `gorm:"index"`
+	UserID         uuid.UUID      `gorm:"type:uuid;index;not null"`
+	StandardTitle  string         `gorm:"not null"`
+	EmergencyTitle string         `gorm:"not null"`
+	Status         HabitStatus    `gorm:"default:'ACTIVE'"`
 
+	// Associations
+	User User `gorm:"foreignKey:UserID"`
+}
+
+// HabitLog tracks the daily completion status of a habit.
+type HabitLog struct {
+	ID             uint `gorm:"primaryKey"`
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	DeletedAt      gorm.DeletedAt `gorm:"index"`
+	HabitID        uuid.UUID      `gorm:"type:uuid;index;not null"`
+	LogDate        time.Time      `gorm:"type:date;not null"`
+	CompletionType CompletionType `gorm:"not null"`
+	IsSynced       bool           `gorm:"default:false"`
+
+	// Composite Unique Constraint: one log per habit per day
+	// Defined via gorm tags on specific fields or at migration level.
+	// In migrations: UNIQUE(habit_id, log_date)
+
+	// Associations
+	Habit Habit `gorm:"foreignKey:HabitID"`
+}
+
+// HabitLogKey is used for batch lookups of existing logs.
 type HabitLogKey struct {
 	HabitID uuid.UUID
 	LogDate time.Time
-}
-
-// ---------------------------------------------------------------------------
-// Domain Models
-// ---------------------------------------------------------------------------
-
-type User struct {
-	ID                uuid.UUID  `json:"id"                 gorm:"type:uuid;primaryKey"`
-	BaseModel
-	Email             string     `json:"email"              gorm:"uniqueIndex;not null"`
-	PasswordHash      string     `json:"-"                  gorm:"not null"`                          // never expose in JSON
-	IdentityStatement string     `json:"identity_statement" gorm:"not null;default:''"`
-	IdentityScore     float64    `json:"identity_score"     gorm:"not null;default:0.0"`
-	Timezone          string     `json:"timezone"           gorm:"not null;default:'UTC'"`
-	StartOfDayOffset  int        `json:"start_of_day_offset" gorm:"not null;default:0"`               // minutes from midnight
-	Habits            []Habit    `json:"-"                  gorm:"foreignKey:UserID"`
-}
-
-func (u *User) BeforeCreate(tx *gorm.DB) (err error) {
-	if u.ID == uuid.Nil {
-		u.ID = uuid.New()
-	}
-	return
-}
-
-type Habit struct {
-	ID             uuid.UUID   `json:"id"              gorm:"type:uuid;primaryKey"`
-	BaseModel
-	UserID         uuid.UUID   `json:"user_id"         gorm:"type:uuid;not null;index"`
-	StandardTitle  string      `json:"standard_title"  gorm:"not null"`
-	EmergencyTitle string      `json:"emergency_title" gorm:"not null;default:''"`
-	Status         HabitStatus `json:"status"          gorm:"type:varchar(20);not null;default:'ACTIVE'"`
-	HabitLogs      []HabitLog  `json:"-"               gorm:"foreignKey:HabitID"`
-}
-
-func (h *Habit) BeforeCreate(tx *gorm.DB) (err error) {
-	if h.ID == uuid.Nil {
-		h.ID = uuid.New()
-	}
-	return
-}
-
-type HabitLog struct {
-	ID             uuid.UUID      `json:"id"              gorm:"type:uuid;primaryKey"`
-	BaseModel
-	HabitID        uuid.UUID      `json:"habit_id"        gorm:"type:uuid;not null;uniqueIndex:idx_habit_log_date;index"`
-	LogDate        time.Time      `json:"log_date"        gorm:"type:date;not null;uniqueIndex:idx_habit_log_date"`
-	CompletionType CompletionType `json:"completion_type" gorm:"type:varchar(30);not null;default:'PENDING'"`
-	IsSynced       bool           `json:"is_synced"       gorm:"not null;default:false"`
-}
-
-func (hl *HabitLog) BeforeCreate(tx *gorm.DB) (err error) {
-	if hl.ID == uuid.Nil {
-		hl.ID = uuid.New()
-	}
-	return
 }
